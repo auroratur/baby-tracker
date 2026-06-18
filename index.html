@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="theme-color" content="#7c9cbf" />
+<title>Baby Tracker</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%237c9cbf'/%3E%3Ctext x='50' y='68' font-size='56' text-anchor='middle'%3E%F0%9F%8D%BC%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#243447; --muted:#7a8ba0;
+    --line:#e6ebf1; --accent:#7c9cbf; --accent-d:#5d7e9f;
+    --feed:#6aa9e0; --diaper:#7bc99b; --spit:#e6a861; --nap:#a98fd1;
+    --danger:#e06a6a; --shadow:0 2px 10px rgba(36,52,71,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink);
+    padding-bottom:calc(72px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(135deg,var(--accent),var(--accent-d));
+    color:#fff; padding:calc(14px + env(safe-area-inset-top)) 18px 14px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+  }
+  header h1{margin:0; font-size:19px; font-weight:650; letter-spacing:.2px; display:flex; align-items:center; gap:8px}
+  header .sub{font-size:12.5px; opacity:.85; margin-top:2px}
+  .wrap{max-width:540px; margin:0 auto; padding:16px}
+  .view{display:none}
+  .view.active{display:block; animation:fade .25s ease}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+
+  /* Quick log buttons */
+  .quick{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px}
+  .qbtn{
+    border:none; border-radius:18px; padding:18px 14px; color:#fff;
+    font-size:16px; font-weight:600; cursor:pointer; box-shadow:var(--shadow);
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    transition:transform .08s ease, filter .15s; min-height:96px; justify-content:center;
+  }
+  .qbtn:active{transform:scale(.96); filter:brightness(1.05)}
+  .qbtn .emoji{font-size:30px}
+  .qbtn.feed{background:linear-gradient(135deg,#6aa9e0,#5790cf)}
+  .qbtn.diaper{background:linear-gradient(135deg,#7bc99b,#5fb583)}
+  .qbtn.spit{background:linear-gradient(135deg,#e6a861,#d8924a)}
+  .qbtn.nap{background:linear-gradient(135deg,#a98fd1,#9477c2)}
+
+  .card{background:var(--card); border-radius:16px; padding:16px; box-shadow:var(--shadow); margin-bottom:14px}
+  .card h2{margin:0 0 12px; font-size:14px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:650}
+
+  /* Summary cards */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+  .stat{text-align:center; padding:10px 4px; border-radius:12px; background:var(--bg)}
+  .stat .n{font-size:22px; font-weight:700; line-height:1}
+  .stat .l{font-size:11px; color:var(--muted); margin-top:5px}
+  .stat.feed .n{color:var(--feed)} .stat.diaper .n{color:var(--diaper)}
+  .stat.spit .n{color:var(--spit)} .stat.nap .n{color:var(--nap)}
+
+  /* Nap-in-progress banner */
+  .napbar{background:linear-gradient(135deg,#a98fd1,#9477c2); color:#fff; border-radius:16px; padding:14px 16px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow)}
+  .napbar .t{font-weight:650} .napbar .e{font-size:12.5px; opacity:.9}
+  .napbar button{background:rgba(255,255,255,.25); border:none; color:#fff; padding:9px 16px; border-radius:10px; font-weight:600; font-size:14px}
+
+  /* Timeline */
+  .tl{list-style:none; margin:0; padding:0}
+  .tl li{display:flex; gap:12px; padding:11px 4px; border-bottom:1px solid var(--line); align-items:center}
+  .tl li:last-child{border-bottom:none}
+  .dot{width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0}
+  .dot.feed{background:#e6f0fa} .dot.diaper{background:#e6f5ec} .dot.spit{background:#faf0e0} .dot.nap{background:#f0eafa}
+  .tl .body{flex:1; min-width:0}
+  .tl .ttl{font-weight:600; font-size:14.5px}
+  .tl .meta{font-size:12.5px; color:var(--muted); margin-top:2px}
+  .tl .time{font-size:12.5px; color:var(--muted); text-align:right; flex-shrink:0; white-space:nowrap}
+  .tl .del{background:none; border:none; color:var(--danger); font-size:13px; padding:6px; margin-left:4px; opacity:.55}
+  .daygroup{font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:16px 4px 6px}
+
+  .empty{text-align:center; color:var(--muted); padding:30px 16px; font-size:14px}
+  .muted{color:var(--muted)}
+
+  /* Bottom nav */
+  nav{
+    position:fixed; bottom:0; left:0; right:0; z-index:30;
+    background:#fff; border-top:1px solid var(--line);
+    display:flex; padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -2px 10px rgba(36,52,71,.05);
+  }
+  nav button{flex:1; background:none; border:none; padding:9px 0 8px; color:var(--muted); font-size:11px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer}
+  nav button .i{font-size:20px}
+  nav button.active{color:var(--accent-d)}
+
+  /* Modal / sheet */
+  .sheet-bg{position:fixed; inset:0; background:rgba(36,52,71,.45); z-index:40; display:none; align-items:flex-end; justify-content:center}
+  .sheet-bg.show{display:flex; animation:fade .2s}
+  .sheet{background:#fff; width:100%; max-width:540px; border-radius:22px 22px 0 0; padding:18px 18px calc(20px + env(safe-area-inset-bottom)); animation:slideup .25s ease}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .sheet h3{margin:2px 0 16px; font-size:18px; display:flex; align-items:center; gap:9px}
+  .field{margin-bottom:14px}
+  .field label{display:block; font-size:12.5px; color:var(--muted); font-weight:600; margin-bottom:6px}
+  .field input, .field select, .field textarea{
+    width:100%; border:1.5px solid var(--line); border-radius:12px; padding:12px; font-size:16px;
+    font-family:inherit; background:#fbfcfd; color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--accent)}
+  .chips{display:flex; gap:8px; flex-wrap:wrap}
+  .chip{flex:1; min-width:64px; text-align:center; padding:11px 8px; border:1.5px solid var(--line); border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; background:#fbfcfd; color:var(--muted)}
+  .chip.on{background:var(--accent); border-color:var(--accent); color:#fff}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .btn{width:100%; border:none; border-radius:14px; padding:15px; font-size:16px; font-weight:650; color:#fff; background:var(--accent); cursor:pointer; margin-top:4px}
+  .btn:active{filter:brightness(1.05)}
+  .btn.ghost{background:var(--bg); color:var(--muted)}
+  .btn.danger{background:var(--danger)}
+
+  canvas{width:100%!important}
+  .seg{display:flex; gap:6px; margin-bottom:14px; background:var(--bg); padding:4px; border-radius:12px}
+  .seg button{flex:1; border:none; background:none; padding:9px; border-radius:9px; font-size:13px; font-weight:600; color:var(--muted)}
+  .seg button.on{background:#fff; color:var(--ink); box-shadow:var(--shadow)}
+  .insight{font-size:13.5px; line-height:1.5; color:var(--ink); background:#eef3f8; border-radius:12px; padding:12px 14px; margin-bottom:6px}
+  .insight b{color:var(--accent-d)}
+
+  .toast{position:fixed; bottom:88px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:11px 18px; border-radius:12px; font-size:14px; z-index:60; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
+
+  .setup-note{font-size:12.5px; color:var(--muted); line-height:1.5; margin-top:8px}
+  a{color:var(--accent-d)}
+  .banner{background:#fff4e0; border:1px solid #f0d9a8; color:#8a6d2f; border-radius:12px; padding:12px 14px; font-size:13px; margin-bottom:14px; line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap" style="padding:0">
+    <h1>🍼 <span id="hdrName">Baby Tracker</span></h1>
+    <div class="sub" id="hdrSub">Loading…</div>
+  </div>
+</header>
+
+<!-- ================= HOME ================= -->
+<div class="wrap">
+<section id="view-home" class="view active">
+  <div id="connBanner" class="banner" style="display:none">
+    ⚙️ Not connected yet. Go to <b>Settings</b> to link your free Supabase server so you and your partner share data.
+  </div>
+
+  <div id="napActive"></div>
+
+  <div class="quick">
+    <button class="qbtn feed"   onclick="openFeed()"><span class="emoji">🍼</span>Feed</button>
+    <button class="qbtn diaper" onclick="openDiaper()"><span class="emoji">💩</span>Diaper</button>
+    <button class="qbtn spit"   onclick="openSpit()"><span class="emoji">🤮</span>Spit-up</button>
+    <button class="qbtn nap"    onclick="napTap()"><span class="emoji">😴</span><span id="napBtnLabel">Nap</span></button>
+  </div>
+
+  <div class="card">
+    <h2>Today</h2>
+    <div class="stats">
+      <div class="stat feed"><div class="n" id="sFeed">–</div><div class="l">Feeds</div></div>
+      <div class="stat diaper"><div class="n" id="sDiaper">–</div><div class="l">Diapers</div></div>
+      <div class="stat spit"><div class="n" id="sSpit">–</div><div class="l">Spit-ups</div></div>
+      <div class="stat nap"><div class="n" id="sNap">–</div><div class="l">Nap</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Since last…</h2>
+    <div class="stats" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="stat feed"><div class="n" id="lFeed" style="font-size:16px">–</div><div class="l">Last feed</div></div>
+      <div class="stat diaper"><div class="n" id="lDiaper" style="font-size:16px">–</div><div class="l">Last diaper</div></div>
+      <div class="stat nap"><div class="n" id="lNap" style="font-size:16px">–</div><div class="l">Last nap</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Recent</h2>
+    <ul class="tl" id="recentList"><li class="empty">No entries yet</li></ul>
+  </div>
+</section>
+
+<!-- ================= HISTORY ================= -->
+<section id="view-history" class="view">
+  <div class="seg" id="histFilter">
+    <button class="on" data-f="all" onclick="setHistFilter('all',this)">All</button>
+    <button data-f="feed" onclick="setHistFilter('feed',this)">🍼</button>
+    <button data-f="diaper" onclick="setHistFilter('diaper',this)">💩</button>
+    <button data-f="spit" onclick="setHistFilter('spit',this)">🤮</button>
+    <button data-f="nap" onclick="setHistFilter('nap',this)">😴</button>
+  </div>
+  <div id="historyList"></div>
+</section>
+
+<!-- ================= TRENDS ================= -->
+<section id="view-trends" class="view">
+  <div class="seg" id="rangeSel">
+    <button data-r="7" class="on" onclick="setRange(7,this)">7 days</button>
+    <button data-r="14" onclick="setRange(14,this)">14 days</button>
+    <button data-r="30" onclick="setRange(30,this)">30 days</button>
+  </div>
+
+  <div id="insights"></div>
+
+  <div class="card">
+    <h2>Spit-ups vs. feeding</h2>
+    <p class="setup-note" style="margin-top:0">How long after a feed spit-ups happen. Tall bars near the left = spits soon after eating.</p>
+    <canvas id="chSpitTiming" height="200"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Daily activity</h2>
+    <canvas id="chDaily" height="220"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Feeds by hour of day</h2>
+    <canvas id="chFeedHour" height="200"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Sleep per day (hours)</h2>
+    <canvas id="chNap" height="200"></canvas>
+  </div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section id="view-settings" class="view">
+  <div class="card">
+    <h2>Baby</h2>
+    <div class="field">
+      <label>Name</label>
+      <input id="setName" placeholder="Baby's name" />
+    </div>
+    <button class="btn" onclick="saveName()">Save name</button>
+  </div>
+
+  <div class="card">
+    <h2>Shared server (Supabase)</h2>
+    <p class="setup-note">Paste your free Supabase project URL and anon key here. Enter the <b>same two values on both phones</b> to share data. See SETUP.md for the 5-minute walkthrough.</p>
+    <div class="field" style="margin-top:12px">
+      <label>Project URL</label>
+      <input id="setUrl" placeholder="https://xxxx.supabase.co" autocapitalize="off" autocorrect="off" />
+    </div>
+    <div class="field">
+      <label>Anon public key</label>
+      <textarea id="setKey" rows="3" placeholder="eyJhbGc..." autocapitalize="off" autocorrect="off"></textarea>
+    </div>
+    <button class="btn" onclick="saveConn()">Connect</button>
+    <button class="btn ghost" style="margin-top:8px" onclick="shareConfig()">📋 Copy setup link for partner</button>
+    <div id="connStatus" class="setup-note" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Data</h2>
+    <button class="btn ghost" onclick="exportData()">⬇️ Export all data (JSON)</button>
+    <button class="btn ghost" style="margin-top:8px" onclick="loadAll(true)">🔄 Refresh from server</button>
+  </div>
+</section>
+</div>
+
+<!-- ================= NAV ================= -->
+<nav>
+  <button class="active" data-v="home" onclick="show('home',this)"><span class="i">🏠</span>Home</button>
+  <button data-v="history" onclick="show('history',this)"><span class="i">📋</span>History</button>
+  <button data-v="trends" onclick="show('trends',this)"><span class="i">📈</span>Trends</button>
+  <button data-v="settings" onclick="show('settings',this)"><span class="i">⚙️</span>Settings</button>
+</nav>
+
+<!-- ================= SHEET ================= -->
+<div class="sheet-bg" id="sheetBg" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+/* ============================================================
+   Baby Tracker — single-file app, Supabase backend
+   ============================================================ */
+const LS = {
+  url:'bt_url', key:'bt_key', name:'bt_name', cache:'bt_cache'
+};
+let sb = null;
+let DATA = { feedings:[], diapers:[], spitups:[], naps:[] };
+let charts = {};
+let range = 7;
+let histFilter = 'all';
+
+/* ---------- init ---------- */
+function init(){
+  // allow setup via URL hash: #c=<base64 json {u,k,n}>
+  if(location.hash.startsWith('#c=')){
+    try{
+      const cfg = JSON.parse(atob(decodeURIComponent(location.hash.slice(3))));
+      if(cfg.u) localStorage.setItem(LS.url, cfg.u);
+      if(cfg.k) localStorage.setItem(LS.key, cfg.k);
+      if(cfg.n) localStorage.setItem(LS.name, cfg.n);
+      history.replaceState(null,'',location.pathname);
+      toast('Setup applied ✓');
+    }catch(e){ console.warn('bad config hash', e); }
+  }
+  const name = localStorage.getItem(LS.name) || 'Baby';
+  document.getElementById('hdrName').textContent = name + (name==='Baby'?' Tracker':'');
+  document.getElementById('setName').value = localStorage.getItem(LS.name) || '';
+  document.getElementById('setUrl').value = localStorage.getItem(LS.url) || '';
+  document.getElementById('setKey').value = localStorage.getItem(LS.key) || '';
+
+  // render from cache immediately so app feels instant offline
+  const cached = localStorage.getItem(LS.cache);
+  if(cached){ try{ DATA = JSON.parse(cached); }catch(e){} }
+
+  connect();
+  renderAll();
+  loadAll();
+  setInterval(renderHeaderClock, 30000);
+}
+
+function connect(){
+  const url = localStorage.getItem(LS.url);
+  const key = localStorage.getItem(LS.key);
+  document.getElementById('connBanner').style.display = (url&&key) ? 'none' : 'block';
+  if(url && key && window.supabase){
+    try{ sb = window.supabase.createClient(url, key); }
+    catch(e){ sb=null; console.error(e); }
+  } else { sb = null; }
+}
+
+/* ---------- nav ---------- */
+function show(v, el){
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  window.scrollTo(0,0);
+  if(v==='trends') renderTrends();
+  if(v==='history') renderHistory();
+}
+
+/* ---------- helpers ---------- */
+function nowLocalInput(){
+  const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+  return d.toISOString().slice(0,16);
+}
+function toISO(localVal){ return new Date(localVal).toISOString(); }
+function fmtTime(iso){ return new Date(iso).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
+function fmtDay(iso){
+  const d=new Date(iso), t=new Date();
+  const y=new Date(t); y.setDate(t.getDate()-1);
+  if(d.toDateString()===t.toDateString()) return 'Today';
+  if(d.toDateString()===y.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'});
+}
+function ago(iso){
+  if(!iso) return '—';
+  let m = Math.floor((Date.now()-new Date(iso))/60000);
+  if(m<1) return 'just now';
+  if(m<60) return m+'m ago';
+  const h=Math.floor(m/60); m=m%60;
+  if(h<24) return h+'h'+(m?' '+m+'m':'')+' ago';
+  return Math.floor(h/24)+'d ago';
+}
+function dur(min){
+  if(min==null) return '';
+  min=Math.round(min);
+  if(min<60) return min+'m';
+  return Math.floor(min/60)+'h '+(min%60)+'m';
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1800);
+}
+function uuid(){ return (crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(16).slice(2)); }
+function cacheSave(){ localStorage.setItem(LS.cache, JSON.stringify(DATA)); }
+
+/* ---------- data load ---------- */
+async function loadAll(manual){
+  if(!sb){ if(manual) toast('Connect a server first'); return; }
+  try{
+    const since = new Date(Date.now()-1000*60*60*24*45).toISOString();
+    const [f,d,s,n] = await Promise.all([
+      sb.from('feedings').select('*').gte('ts',since).order('ts',{ascending:false}),
+      sb.from('diapers').select('*').gte('ts',since).order('ts',{ascending:false}),
+      sb.from('spitups').select('*').gte('ts',since).order('ts',{ascending:false}),
+      sb.from('naps').select('*').gte('start_ts',since).order('start_ts',{ascending:false}),
+    ]);
+    if(f.error||d.error||s.error||n.error){
+      throw (f.error||d.error||s.error||n.error);
+    }
+    DATA = { feedings:f.data||[], diapers:d.data||[], spitups:s.data||[], naps:n.data||[] };
+    cacheSave();
+    renderAll();
+    if(manual) toast('Refreshed ✓');
+  }catch(e){
+    console.error(e);
+    if(manual) toast('Sync failed: '+(e.message||'check settings'));
+  }
+}
+
+/* ---------- inserts ---------- */
+async function insert(table, row){
+  row.id = row.id || uuid();
+  // optimistic local
+  const key = table;
+  DATA[key].unshift(row);
+  cacheSave(); renderAll();
+  if(!sb){ toast('Saved locally (no server)'); return; }
+  try{
+    const { error } = await sb.from(table).insert(row);
+    if(error) throw error;
+    toast('Saved ✓');
+    loadAll();
+  }catch(e){
+    console.error(e); toast('Saved locally — sync failed');
+  }
+}
+async function del(table, id){
+  DATA[table] = DATA[table].filter(r=>r.id!==id);
+  cacheSave(); renderAll();
+  if(sb){ try{ await sb.from(table).delete().eq('id',id); }catch(e){ console.error(e); } }
+}
+
+/* ---------- sheet builder ---------- */
+let sheetState = {};
+function openSheet(html){
+  document.getElementById('sheet').innerHTML = html;
+  document.getElementById('sheetBg').classList.add('show');
+}
+function closeSheet(){ document.getElementById('sheetBg').classList.remove('show'); }
+function pickChip(group, val, el){
+  sheetState[group]=val;
+  el.parentNode.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+}
+
+/* ----- FEED ----- */
+function openFeed(){
+  sheetState={ side:'left' };
+  openSheet(`
+    <h3>🍼 Feeding</h3>
+    <div class="field"><label>Type / side</label>
+      <div class="chips">
+        <div class="chip on" onclick="pickChip('side','left',this)">Left</div>
+        <div class="chip" onclick="pickChip('side','right',this)">Right</div>
+        <div class="chip" onclick="pickChip('side','both',this)">Both</div>
+        <div class="chip" onclick="pickChip('side','bottle',this)">Bottle</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Duration (min)</label><input id="fDur" type="number" inputmode="numeric" placeholder="e.g. 15"/></div>
+      <div class="field"><label>Bottle (oz)</label><input id="fOz" type="number" inputmode="decimal" placeholder="optional"/></div>
+    </div>
+    <div class="field"><label>When</label><input id="fTs" type="datetime-local" value="${nowLocalInput()}"/></div>
+    <div class="field"><label>Notes</label><input id="fNotes" placeholder="optional"/></div>
+    <button class="btn" onclick="saveFeed()">Save feeding</button>
+  `);
+}
+function saveFeed(){
+  insert('feedings', {
+    ts: toISO(document.getElementById('fTs').value),
+    side: sheetState.side,
+    duration_min: numOrNull('fDur'),
+    amount_oz: numOrNull('fOz'),
+    notes: valOrNull('fNotes')
+  });
+  closeSheet();
+}
+
+/* ----- DIAPER ----- */
+function openDiaper(){
+  sheetState={ kind:'wet' };
+  openSheet(`
+    <h3>💩 Diaper</h3>
+    <div class="field"><label>Type</label>
+      <div class="chips">
+        <div class="chip on" onclick="pickChip('kind','wet',this)">💧 Wet</div>
+        <div class="chip" onclick="pickChip('kind','dirty',this)">💩 Dirty</div>
+        <div class="chip" onclick="pickChip('kind','both',this)">Both</div>
+      </div>
+    </div>
+    <div class="field"><label>When</label><input id="dTs" type="datetime-local" value="${nowLocalInput()}"/></div>
+    <div class="field"><label>Notes</label><input id="dNotes" placeholder="color, blowout, etc."/></div>
+    <button class="btn" onclick="saveDiaper()">Save diaper</button>
+  `);
+}
+function saveDiaper(){
+  insert('diapers', {
+    ts: toISO(document.getElementById('dTs').value),
+    kind: sheetState.kind,
+    notes: valOrNull('dNotes')
+  });
+  closeSheet();
+}
+
+/* ----- SPIT-UP ----- */
+function openSpit(){
+  sheetState={ severity:'small' };
+  const lastFeed = DATA.feedings[0];
+  const hint = lastFeed ? `<p class="setup-note" style="margin-top:-6px">Last feed was <b>${ago(lastFeed.ts)}</b> — we'll link this automatically.</p>` : '';
+  openSheet(`
+    <h3>🤮 Spit-up</h3>
+    ${hint}
+    <div class="field"><label>Amount</label>
+      <div class="chips">
+        <div class="chip on" onclick="pickChip('severity','small',this)">Small</div>
+        <div class="chip" onclick="pickChip('severity','medium',this)">Medium</div>
+        <div class="chip" onclick="pickChip('severity','large',this)">Large</div>
+      </div>
+    </div>
+    <div class="field"><label>When</label><input id="sTs" type="datetime-local" value="${nowLocalInput()}"/></div>
+    <div class="field"><label>Notes</label><input id="sNotes" placeholder="forceful? after burp?"/></div>
+    <button class="btn" onclick="saveSpit()">Save spit-up</button>
+  `);
+}
+function saveSpit(){
+  insert('spitups', {
+    ts: toISO(document.getElementById('sTs').value),
+    severity: sheetState.severity,
+    notes: valOrNull('sNotes')
+  });
+  closeSheet();
+}
+
+/* ----- NAP (start/stop) ----- */
+function activeNap(){ return DATA.naps.find(n=>!n.end_ts); }
+function napTap(){
+  const a = activeNap();
+  if(a){ endNap(a); } else { startNap(); }
+}
+function startNap(){
+  insert('naps', { start_ts:new Date().toISOString(), end_ts:null, notes:null });
+  toast('Nap started 😴');
+}
+async function endNap(nap){
+  nap.end_ts = new Date().toISOString();
+  cacheSave(); renderAll();
+  if(sb){ try{ await sb.from('naps').update({end_ts:nap.end_ts}).eq('id',nap.id); loadAll(); }catch(e){ console.error(e); } }
+  toast('Nap ended — '+dur((new Date(nap.end_ts)-new Date(nap.start_ts))/60000));
+}
+function logPastNap(){
+  sheetState={};
+  openSheet(`
+    <h3>😴 Log a past nap</h3>
+    <div class="field"><label>Start</label><input id="nStart" type="datetime-local" value="${nowLocalInput()}"/></div>
+    <div class="field"><label>End</label><input id="nEnd" type="datetime-local" value="${nowLocalInput()}"/></div>
+    <div class="field"><label>Notes</label><input id="nNotes" placeholder="optional"/></div>
+    <button class="btn" onclick="savePastNap()">Save nap</button>
+  `);
+}
+function savePastNap(){
+  insert('naps', {
+    start_ts: toISO(document.getElementById('nStart').value),
+    end_ts: toISO(document.getElementById('nEnd').value),
+    notes: valOrNull('nNotes')
+  });
+  closeSheet();
+}
+
+function numOrNull(id){ const v=document.getElementById(id).value; return v===''?null:Number(v); }
+function valOrNull(id){ const v=document.getElementById(id).value.trim(); return v===''?null:v; }
+
+/* ---------- render ---------- */
+function renderAll(){ renderHeaderClock(); renderHome(); if(document.getElementById('view-history').classList.contains('active')) renderHistory(); if(document.getElementById('view-trends').classList.contains('active')) renderTrends(); }
+
+function renderHeaderClock(){
+  const a = activeNap();
+  let parts = [];
+  const lf = DATA.feedings[0];
+  if(lf) parts.push('🍼 '+ago(lf.ts));
+  if(a) parts.push('😴 napping');
+  document.getElementById('hdrSub').textContent = parts.length? parts.join('  ·  ') : 'Tap a button to log';
+}
+
+function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function todayCount(arr, field='ts'){ const t=startOfToday(); return arr.filter(r=>new Date(r[field])>=t).length; }
+
+function renderHome(){
+  document.getElementById('sFeed').textContent = todayCount(DATA.feedings);
+  document.getElementById('sDiaper').textContent = todayCount(DATA.diapers);
+  document.getElementById('sSpit').textContent = todayCount(DATA.spitups);
+  // nap total today
+  const t=startOfToday();
+  let napMin=0;
+  DATA.naps.forEach(n=>{
+    const s=new Date(n.start_ts), e=n.end_ts?new Date(n.end_ts):new Date();
+    if(e>=t){ const from=Math.max(s,t); napMin += (e-from)/60000; }
+  });
+  document.getElementById('sNap').textContent = napMin>0 ? dur(napMin) : '0m';
+
+  document.getElementById('lFeed').textContent = DATA.feedings[0]?ago(DATA.feedings[0].ts):'—';
+  document.getElementById('lDiaper').textContent = DATA.diapers[0]?ago(DATA.diapers[0].ts):'—';
+  const lastEndedNap = DATA.naps.find(n=>n.end_ts);
+  document.getElementById('lNap').textContent = lastEndedNap?ago(lastEndedNap.end_ts):'—';
+
+  // nap-in-progress banner
+  const a=activeNap();
+  const napDiv=document.getElementById('napActive');
+  if(a){
+    napDiv.innerHTML = `<div class="napbar"><div><div class="t">😴 Napping</div><div class="e">started ${fmtTime(a.start_ts)} · ${dur((Date.now()-new Date(a.start_ts))/60000)}</div></div><button onclick="napTap()">End nap</button></div>`;
+  } else { napDiv.innerHTML=''; }
+  document.getElementById('napBtnLabel').textContent = a?'End nap':'Nap';
+
+  // recent merged
+  document.getElementById('recentList').innerHTML = timelineHTML(mergedEvents().slice(0,8), false);
+}
+
+function mergedEvents(){
+  const ev=[];
+  DATA.feedings.forEach(r=>ev.push({type:'feed', ts:r.ts, r}));
+  DATA.diapers.forEach(r=>ev.push({type:'diaper', ts:r.ts, r}));
+  DATA.spitups.forEach(r=>ev.push({type:'spit', ts:r.ts, r}));
+  DATA.naps.forEach(r=>ev.push({type:'nap', ts:r.start_ts, r}));
+  ev.sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  return ev;
+}
+
+const EMOJI={feed:'🍼',diaper:'💩',spit:'🤮',nap:'😴'};
+const TABLE={feed:'feedings',diaper:'diapers',spit:'spitups',nap:'naps'};
+function eventTitle(e){
+  const r=e.r;
+  if(e.type==='feed'){
+    let s = ({left:'Left breast',right:'Right breast',both:'Both breasts',bottle:'Bottle'})[r.side]||'Feed';
+    return s;
+  }
+  if(e.type==='diaper') return ({wet:'Wet diaper',dirty:'Dirty diaper',both:'Wet + dirty'})[r.kind]||'Diaper';
+  if(e.type==='spit') return (r.severity?r.severity[0].toUpperCase()+r.severity.slice(1):'')+' spit-up';
+  if(e.type==='nap') return r.end_ts?'Nap':'Nap (in progress)';
+}
+function eventMeta(e){
+  const r=e.r; const bits=[];
+  if(e.type==='feed'){ if(r.duration_min!=null) bits.push(dur(r.duration_min)); if(r.amount_oz!=null) bits.push(r.amount_oz+' oz'); }
+  if(e.type==='nap'){ if(r.end_ts) bits.push(dur((new Date(r.end_ts)-new Date(r.start_ts))/60000)); else bits.push('ongoing'); }
+  if(r.notes) bits.push(r.notes);
+  return bits.join(' · ');
+}
+function timelineHTML(events, withDel){
+  if(!events.length) return '<li class="empty">No entries yet</li>';
+  return events.map(e=>{
+    const meta=eventMeta(e);
+    return `<li>
+      <div class="dot ${e.type}">${EMOJI[e.type]}</div>
+      <div class="body">
+        <div class="ttl">${eventTitle(e)}</div>
+        ${meta?`<div class="meta">${escapeHtml(meta)}</div>`:''}
+      </div>
+      <div class="time">${fmtTime(e.ts)}</div>
+      ${withDel?`<button class="del" onclick="del('${TABLE[e.type]}','${e.r.id}')">✕</button>`:''}
+    </li>`;
+  }).join('');
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------- history ---------- */
+function setHistFilter(f, el){
+  histFilter=f;
+  el.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderHistory();
+}
+function renderHistory(){
+  let ev=mergedEvents();
+  if(histFilter!=='all') ev=ev.filter(e=>e.type===histFilter);
+  // group by day
+  const groups={};
+  ev.forEach(e=>{ const k=fmtDay(e.ts); (groups[k]=groups[k]||[]).push(e); });
+  let html='';
+  if(!ev.length){ html='<div class="empty">No entries yet</div>'; }
+  for(const k in groups){
+    html+=`<div class="daygroup">${k}</div><div class="card" style="padding:6px 16px"><ul class="tl">${timelineHTML(groups[k],true)}</ul></div>`;
+  }
+  document.getElementById('historyList').innerHTML=html;
+}
+
+/* ---------- trends ---------- */
+function setRange(r, el){
+  range=r;
+  el.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderTrends();
+}
+function dayKeys(){
+  const keys=[]; const d=new Date(); d.setHours(0,0,0,0);
+  for(let i=range-1;i>=0;i--){ const x=new Date(d); x.setDate(d.getDate()-i); keys.push(x); }
+  return keys;
+}
+function destroyChart(k){ if(charts[k]){ charts[k].destroy(); delete charts[k]; } }
+
+function renderTrends(){
+  renderInsights();
+  renderSpitTiming();
+  renderDaily();
+  renderFeedHour();
+  renderNapChart();
+}
+
+// minutes between each spit-up and the most recent preceding feed
+function spitGaps(){
+  const feeds=DATA.feedings.map(f=>new Date(f.ts).getTime()).sort((a,b)=>a-b);
+  const cutoff=Date.now()-range*864e5;
+  const gaps=[];
+  DATA.spitups.forEach(s=>{
+    const st=new Date(s.ts).getTime();
+    if(st<cutoff) return;
+    let prev=null;
+    for(const f of feeds){ if(f<=st) prev=f; else break; }
+    if(prev!=null) gaps.push((st-prev)/60000);
+  });
+  return gaps;
+}
+
+function renderInsights(){
+  const gaps=spitGaps();
+  const el=document.getElementById('insights');
+  let html='';
+  if(gaps.length>=2){
+    const within30=gaps.filter(g=>g<=30).length;
+    const med=gaps.slice().sort((a,b)=>a-b)[Math.floor(gaps.length/2)];
+    const pct=Math.round(within30/gaps.length*100);
+    html+=`<div class="insight">🤮 <b>${gaps.length} spit-ups</b> tracked. <b>${pct}%</b> happened within 30 min of a feed; typical gap is <b>${dur(med)}</b> after eating.</div>`;
+  }
+  // avg feeds/day
+  const fc=DATA.feedings.filter(f=>new Date(f.ts).getTime()>Date.now()-range*864e5).length;
+  const dc=DATA.diapers.filter(f=>new Date(f.ts).getTime()>Date.now()-range*864e5).length;
+  if(fc) html+=`<div class="insight">🍼 Averaging <b>${(fc/range).toFixed(1)} feeds</b> and 💩 <b>${(dc/range).toFixed(1)} diapers</b> per day.</div>`;
+  // avg feed interval
+  const ft=DATA.feedings.map(f=>new Date(f.ts).getTime()).filter(t=>t>Date.now()-range*864e5).sort((a,b)=>a-b);
+  if(ft.length>=3){
+    let sum=0,n=0; for(let i=1;i<ft.length;i++){ const g=(ft[i]-ft[i-1])/60000; if(g<600){sum+=g;n++;} }
+    if(n) html+=`<div class="insight">⏱️ Feeds are about <b>${dur(sum/n)}</b> apart on average.</div>`;
+  }
+  el.innerHTML = html || '<div class="insight">Log a few feeds and spit-ups to see trends here.</div>';
+}
+
+function renderSpitTiming(){
+  destroyChart('spit');
+  const gaps=spitGaps();
+  // buckets of 15 min up to 90+
+  const labels=['0–15m','15–30m','30–45m','45–60m','60–90m','90m+'];
+  const buckets=[0,0,0,0,0,0];
+  gaps.forEach(g=>{
+    if(g<15)buckets[0]++; else if(g<30)buckets[1]++; else if(g<45)buckets[2]++;
+    else if(g<60)buckets[3]++; else if(g<90)buckets[4]++; else buckets[5]++;
+  });
+  charts.spit=new Chart(document.getElementById('chSpitTiming'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Spit-ups',data:buckets,backgroundColor:'#e6a861',borderRadius:6}]},
+    options:baseOpts({yTitle:'count'})
+  });
+}
+
+function renderDaily(){
+  destroyChart('daily');
+  const keys=dayKeys();
+  const lab=keys.map(d=>d.toLocaleDateString([], {month:'numeric',day:'numeric'}));
+  const cnt=(arr,field='ts')=>keys.map(d=>{ const n=new Date(d); n.setDate(d.getDate()+1); return arr.filter(r=>{const t=new Date(r[field]); return t>=d&&t<n;}).length; });
+  charts.daily=new Chart(document.getElementById('chDaily'),{
+    type:'bar',
+    data:{labels:lab,datasets:[
+      {label:'Feeds',data:cnt(DATA.feedings),backgroundColor:'#6aa9e0',borderRadius:4},
+      {label:'Diapers',data:cnt(DATA.diapers),backgroundColor:'#7bc99b',borderRadius:4},
+      {label:'Spit-ups',data:cnt(DATA.spitups),backgroundColor:'#e6a861',borderRadius:4},
+    ]},
+    options:baseOpts({legend:true,stacked:false})
+  });
+}
+
+function renderFeedHour(){
+  destroyChart('fhour');
+  const hours=new Array(24).fill(0);
+  const cutoff=Date.now()-range*864e5;
+  DATA.feedings.forEach(f=>{ const t=new Date(f.ts); if(t.getTime()>cutoff) hours[t.getHours()]++; });
+  const lab=hours.map((_,h)=> h%3===0 ? (h%12||12)+(h<12?'a':'p') : '');
+  charts.fhour=new Chart(document.getElementById('chFeedHour'),{
+    type:'bar',
+    data:{labels:lab,datasets:[{label:'Feeds',data:hours,backgroundColor:'#6aa9e0',borderRadius:3}]},
+    options:baseOpts({yTitle:'count'})
+  });
+}
+
+function renderNapChart(){
+  destroyChart('nap');
+  const keys=dayKeys();
+  const lab=keys.map(d=>d.toLocaleDateString([], {month:'numeric',day:'numeric'}));
+  const data=keys.map(d=>{
+    const dayStart=d.getTime(), dayEnd=dayStart+864e5;
+    let min=0;
+    DATA.naps.forEach(n=>{
+      const s=new Date(n.start_ts).getTime(), e=n.end_ts?new Date(n.end_ts).getTime():Date.now();
+      const from=Math.max(s,dayStart), to=Math.min(e,dayEnd);
+      if(to>from) min+=(to-from)/60000;
+    });
+    return +(min/60).toFixed(1);
+  });
+  charts.nap=new Chart(document.getElementById('chNap'),{
+    type:'line',
+    data:{labels:lab,datasets:[{label:'Hours',data,borderColor:'#a98fd1',backgroundColor:'rgba(169,143,209,.15)',fill:true,tension:.3,pointRadius:3}]},
+    options:baseOpts({yTitle:'hours'})
+  });
+}
+
+function baseOpts(o={}){
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:!!o.legend, labels:{boxWidth:12,font:{size:11}}}},
+    scales:{
+      x:{grid:{display:false},ticks:{font:{size:10},autoSkip:false,maxRotation:0}},
+      y:{beginAtZero:true,grid:{color:'#eef2f6'},ticks:{font:{size:10},precision:0},title:{display:!!o.yTitle,text:o.yTitle||'',font:{size:10}}}
+    }
+  };
+}
+
+/* ---------- settings ---------- */
+function saveName(){
+  const v=document.getElementById('setName').value.trim();
+  localStorage.setItem(LS.name, v);
+  const name=v||'Baby';
+  document.getElementById('hdrName').textContent = name + (name==='Baby'?' Tracker':'');
+  toast('Saved ✓');
+}
+async function saveConn(){
+  const url=document.getElementById('setUrl').value.trim().replace(/\/$/,'');
+  const key=document.getElementById('setKey').value.trim();
+  if(!url||!key){ toast('Enter both URL and key'); return; }
+  localStorage.setItem(LS.url,url); localStorage.setItem(LS.key,key);
+  connect();
+  document.getElementById('connStatus').textContent='Testing connection…';
+  try{
+    const {error}=await sb.from('feedings').select('id').limit(1);
+    if(error) throw error;
+    document.getElementById('connStatus').innerHTML='✅ Connected! Data will sync.';
+    toast('Connected ✓'); loadAll(true);
+  }catch(e){
+    document.getElementById('connStatus').innerHTML='❌ '+(e.message||'Failed')+'<br>Check the URL/key and that you ran the SQL setup.';
+  }
+}
+function shareConfig(){
+  const url=localStorage.getItem(LS.url), key=localStorage.getItem(LS.key), name=localStorage.getItem(LS.name)||'';
+  if(!url||!key){ toast('Connect first'); return; }
+  const cfg=btoa(JSON.stringify({u:url,k:key,n:name}));
+  const link=location.origin+location.pathname+'#c='+cfg;
+  navigator.clipboard?.writeText(link);
+  toast('Setup link copied — send to partner');
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='baby-tracker-export.json';
+  a.click();
+}
+
+/* add "log past nap" link into nap quick when long-pressed — simple: double options via settings */
+document.querySelector('.qbtn.nap').addEventListener('contextmenu',e=>{e.preventDefault();logPastNap();});
+
+init();
+</script>
+</body>
+</html>
